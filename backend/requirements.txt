@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+aiofiles
+python-dotenv
+httpx
+yfinance
+pandas
+pandas-ta
+pydantic
+slowapi
