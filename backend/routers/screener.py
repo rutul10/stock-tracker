@@ -5,7 +5,7 @@ from pydantic import BaseModel, field_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from services.market_data import fetch_screener
+from services.market_data import fetch_screener, fetch_popular, fetch_lightweight
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
@@ -48,6 +48,39 @@ class ScreenerRequest(BaseModel):
         if v < 0:
             raise ValueError("min_price must be non-negative")
         return v
+
+
+class WatchlistRequest(BaseModel):
+    symbols: list[str]
+
+    @field_validator("symbols")
+    @classmethod
+    def validate_symbols(cls, v: list[str]) -> list[str]:
+        if len(v) > 50:
+            raise ValueError("watchlist cannot exceed 50 symbols")
+        return [s.upper().strip() for s in v if s.strip()]
+
+
+@router.get("/screener/popular")
+@limiter.limit("10/minute")
+def get_popular_stocks(request: Request):
+    try:
+        results = fetch_popular()
+        return {"results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/screener/watchlist")
+@limiter.limit("10/minute")
+def get_watchlist_stocks(request: Request, body: WatchlistRequest):
+    if not body.symbols:
+        return {"results": []}
+    try:
+        results = fetch_lightweight(body.symbols)
+        return {"results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/screener")

@@ -13,6 +13,9 @@ def build_projection_prompt(
     notes: Optional[str],
     indicators: dict,
     options_summary: dict,
+    news_context: Optional[list[str]] = None,
+    earnings_context: Optional[dict] = None,
+    dcf_context: Optional[dict] = None,
 ) -> str:
     prices = indicators.get("prices", [])
     last = prices[-1] if prices else {}
@@ -51,6 +54,36 @@ OPTIONS DATA (nearest expiration):
 - Call/Put volume ratio: {options_summary.get('cp_ratio', 'N/A')}
 - Total open interest: {options_summary.get('total_oi', 'N/A')}"""
 
+    news_text = ""
+    if news_context:
+        headlines = "\n".join(f"- {h}" for h in news_context[:5])
+        news_text = f"\nNEWS CONTEXT (recent headlines):\n{headlines}"
+
+    earnings_text = ""
+    if earnings_context:
+        nd = earnings_context.get("next_date", "N/A")
+        eps_est = earnings_context.get("eps_estimate", "N/A")
+        rev_est = earnings_context.get("revenue_estimate", "N/A")
+        history = earnings_context.get("history", [])
+        beat_miss = " / ".join("beat" if q.get("beat") else "miss" for q in history[:4])
+        earnings_text = f"""
+EARNINGS CONTEXT:
+- Next earnings: {nd} | EPS estimate: {eps_est} | Revenue estimate: {rev_est}
+- Last 4 quarters: {beat_miss or 'N/A'}"""
+
+    dcf_text = ""
+    if dcf_context:
+        iv = dcf_context.get("intrinsic_value", "N/A")
+        upside = dcf_context.get("upside_pct", "N/A")
+        cagr = dcf_context.get("cagr", "N/A")
+        wacc = dcf_context.get("wacc", "N/A")
+        tgr = dcf_context.get("terminal_growth", "N/A")
+        margin_exp = dcf_context.get("margin_expansion", "N/A")
+        dcf_text = f"""
+DCF CONTEXT (user assumptions):
+- Revenue CAGR: {cagr}% | Margin expansion: +{margin_exp}% | Terminal growth: {tgr}% | WACC: {wacc}%
+- Calculated intrinsic value: ${iv} (upside: {upside}%)"""
+
     trade_details = f"- Trade type: {trade_type}\n- Direction: {direction}"
     if entry_price is not None:
         trade_details += f"\n- Entry price: ${entry_price}"
@@ -78,7 +111,7 @@ TECHNICAL INDICATORS (3-month):
 - SMA 20: {sma20} | SMA 50: {sma50}
 - Bollinger Bands: Upper {bb_upper} / Lower {bb_lower}
 - ATR (14): {atr}
-{options_text}
+{options_text}{news_text}{earnings_text}{dcf_text}
 
 PROPOSED TRADE:
 {trade_details}

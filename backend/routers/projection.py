@@ -27,6 +27,11 @@ class ProjectionRequest(BaseModel):
     stop_loss: Optional[float] = None
     expiration: Optional[str] = None
     strike: Optional[float] = None
+    notes: Optional[str] = None
+    model: Optional[str] = None
+    news_context: Optional[list[str]] = None
+    earnings_context: Optional[dict] = None
+    dcf_context: Optional[dict] = None
 
     @field_validator("symbol")
     @classmethod
@@ -49,7 +54,6 @@ class ProjectionRequest(BaseModel):
         if v not in VALID_DIRECTIONS:
             raise ValueError(f"direction must be one of {VALID_DIRECTIONS}")
         return v
-    notes: Optional[str] = None
 
 
 def _options_summary(symbol: str) -> dict:
@@ -97,9 +101,13 @@ async def create_projection(req: ProjectionRequest):
         notes=req.notes,
         indicators=indicators,
         options_summary=options_summary,
+        news_context=req.news_context,
+        earnings_context=req.earnings_context,
+        dcf_context=req.dcf_context,
     )
 
-    raw_response = await call_ollama(prompt)
+    effective_model = req.model or OLLAMA_MODEL
+    raw_response = await call_ollama(prompt, model=req.model)
 
     try:
         result = extract_json(raw_response)
@@ -116,5 +124,5 @@ async def create_projection(req: ProjectionRequest):
         "suggested_position_size": result.get("suggested_position_size", "1-2% of portfolio"),
         "key_risks": result.get("key_risks", []),
         "supporting_factors": result.get("supporting_factors", []),
-        "model_used": OLLAMA_MODEL,
+        "model_used": effective_model,
     }

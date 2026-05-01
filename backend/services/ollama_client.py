@@ -12,19 +12,20 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1")
 
 
-async def call_ollama(prompt: str) -> str:
+async def call_ollama(prompt: str, model: str | None = None) -> str:
+    effective_model = model or OLLAMA_MODEL
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(
                 f"{OLLAMA_URL}/api/generate",
-                json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+                json={"model": effective_model, "prompt": prompt, "stream": False},
             )
             resp.raise_for_status()
             return resp.json().get("response", "")
     except httpx.ConnectError:
         raise HTTPException(
             status_code=503,
-            detail=f"Ollama is not running. Start it with: ollama serve (model: {OLLAMA_MODEL})",
+            detail=f"Ollama is not running. Start it with: ollama serve (model: {effective_model})",
         )
     except httpx.TimeoutException:
         raise HTTPException(status_code=503, detail="Ollama timed out — model may still be loading")
