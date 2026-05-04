@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { StockDetail } from '../../hooks/useStockDetail'
 import { fmt } from '../Screener/StockTable'
 import { Spinner } from '../shared/Spinner'
@@ -21,13 +22,32 @@ function MetricRow({ label, value, color }: { label: string; value: string; colo
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function CollapsibleSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ fontFamily: 'var(--font-heading)', fontSize: '0.85rem', color: 'var(--nav-accent)', letterSpacing: '0.1em', marginBottom: 6 }}>
+    <div style={{ marginBottom: 4 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          background: 'none',
+          border: 'none',
+          borderBottom: '1px solid var(--border)',
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '8px 0',
+          cursor: 'pointer',
+          fontFamily: 'var(--font-heading)',
+          fontSize: '0.8rem',
+          color: 'var(--nav-accent)',
+          letterSpacing: '0.1em',
+        }}
+      >
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{open ? '▼' : '▶'}</span>
         {title}
-      </div>
-      {children}
+      </button>
+      {open && <div style={{ paddingTop: 4 }}>{children}</div>}
     </div>
   )
 }
@@ -52,13 +72,7 @@ export function CompanyOverviewPanel({ detail, loading, currentPrice }: Props) {
 
   return (
     <div style={{ fontSize: 13 }}>
-      {detail.description && (
-        <p style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.5, marginBottom: 12, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          {detail.description}
-        </p>
-      )}
-
-      <Section title="FINANCIALS">
+      <CollapsibleSection title="FINANCIALS">
         <MetricRow label="Revenue (TTM)" value={fmt(detail.revenue)} />
         <MetricRow label="Revenue Growth YoY" value={detail.revenue_growth != null ? `${(detail.revenue_growth * 100).toFixed(1)}%` : '—'} color={detail.revenue_growth != null ? (detail.revenue_growth > 0 ? 'var(--accent-green)' : 'var(--accent-red)') : undefined} />
         <MetricRow label="Gross Margin" value={pct(detail.gross_margin)} />
@@ -68,37 +82,37 @@ export function CompanyOverviewPanel({ detail, loading, currentPrice }: Props) {
         <MetricRow label="EPS (Fwd)" value={detail.eps_fwd != null ? `$${num(detail.eps_fwd)}` : '—'} />
         <MetricRow label="FCF" value={fmt(detail.fcf)} />
         <MetricRow label="FCF Margin" value={pct(detail.fcf_margin)} />
-      </Section>
+      </CollapsibleSection>
 
-      <Section title="VALUATION">
+      <CollapsibleSection title="VALUATION">
         <MetricRow label="P/E (TTM)" value={detail.pe_ttm != null ? `${num(detail.pe_ttm)}x` : '—'} />
         <MetricRow label="P/E (Fwd)" value={detail.pe_fwd != null ? `${num(detail.pe_fwd)}x` : '—'} />
         <MetricRow label="PEG Ratio" value={detail.peg != null ? num(detail.peg) : '—'} />
         <MetricRow label="EV/EBITDA" value={detail.ev_ebitda != null ? `${num(detail.ev_ebitda)}x` : '—'} />
         <MetricRow label="P/FCF" value={detail.price_to_fcf != null ? `${num(detail.price_to_fcf)}x` : '—'} />
-      </Section>
+      </CollapsibleSection>
 
-      <Section title="BALANCE SHEET">
+      <CollapsibleSection title="BALANCE SHEET">
         <MetricRow label="Cash" value={fmt(detail.cash)} />
         <MetricRow label="Total Debt" value={fmt(detail.total_debt)} />
         <MetricRow label="Net Cash" value={detail.cash != null && detail.total_debt != null ? fmt(detail.cash - detail.total_debt) : '—'} color={detail.cash != null && detail.total_debt != null ? (detail.cash > detail.total_debt ? 'var(--accent-green)' : 'var(--accent-red)') : undefined} />
         <MetricRow label="Shares Out." value={fmt(detail.shares_outstanding)} />
-      </Section>
+      </CollapsibleSection>
 
-      <Section title="TECHNICAL">
+      <CollapsibleSection title="TECHNICAL">
         <MetricRow label="52w Low" value={detail.week52_low != null ? `$${num(detail.week52_low)}` : '—'} />
         <MetricRow label="52w High" value={detail.week52_high != null ? `$${num(detail.week52_high)}` : '—'} />
         <MetricRow label="vs 200-DMA" value={vsMA200 != null ? `${parseFloat(vsMA200) > 0 ? '+' : ''}${vsMA200}%` : '—'} color={vsMA200 != null ? (parseFloat(vsMA200) > 0 ? 'var(--accent-green)' : 'var(--accent-red)') : undefined} />
         <MetricRow label="Short Interest" value={detail.short_percent != null ? pct(detail.short_percent) : '—'} />
-      </Section>
+      </CollapsibleSection>
 
-      <Section title="ANALYST CONSENSUS">
+      <CollapsibleSection title="ANALYST CONSENSUS">
         <MetricRow label="Mean PT" value={detail.analyst_target_mean != null ? `$${num(detail.analyst_target_mean)}` : '—'} />
         <MetricRow label="PT Range" value={detail.analyst_target_low != null && detail.analyst_target_high != null ? `$${num(detail.analyst_target_low)} – $${num(detail.analyst_target_high)}` : '—'} />
         <MetricRow label="Upside to PT" value={upside != null ? `${parseFloat(upside) > 0 ? '+' : ''}${upside}%` : '—'} color={upside != null ? (parseFloat(upside) > 0 ? 'var(--accent-green)' : 'var(--accent-red)') : undefined} />
         <MetricRow label="Analysts" value={detail.analyst_count != null ? String(detail.analyst_count) : '—'} />
         {detail.recommendation && <MetricRow label="Consensus" value={detail.recommendation.toUpperCase()} color="var(--accent-blue)" />}
-      </Section>
+      </CollapsibleSection>
     </div>
   )
 }

@@ -32,6 +32,7 @@ class ProjectionRequest(BaseModel):
     news_context: Optional[list[str]] = None
     earnings_context: Optional[dict] = None
     dcf_context: Optional[dict] = None
+    user_profile: Optional[dict] = None
 
     @field_validator("symbol")
     @classmethod
@@ -104,6 +105,7 @@ async def create_projection(req: ProjectionRequest):
         news_context=req.news_context,
         earnings_context=req.earnings_context,
         dcf_context=req.dcf_context,
+        user_profile=req.user_profile,
     )
 
     effective_model = req.model or OLLAMA_MODEL
@@ -113,6 +115,9 @@ async def create_projection(req: ProjectionRequest):
         result = extract_json(raw_response)
     except (ValueError, Exception) as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse AI response: {e}")
+
+    price_projections = result.get("price_projections", None)
+    directional_bias = result.get("directional_bias", None)
 
     return {
         "symbol": symbol,
@@ -125,4 +130,6 @@ async def create_projection(req: ProjectionRequest):
         "key_risks": result.get("key_risks", []),
         "supporting_factors": result.get("supporting_factors", []),
         "model_used": effective_model,
+        "price_projections": price_projections,
+        "directional_bias": directional_bias,
     }

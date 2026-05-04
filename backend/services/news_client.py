@@ -44,12 +44,22 @@ def _fetch_news_yfinance(symbol: str) -> list[dict]:
     out = []
     for a in news[:10]:
         content = a.get("content", {})
+        # Parse pubDate ISO string to Unix timestamp (seconds)
+        pub_date = content.get("pubDate", "") or ""
+        ts = 0
+        if pub_date:
+            try:
+                ts = int(datetime.fromisoformat(pub_date.replace("Z", "+00:00")).timestamp())
+            except (ValueError, TypeError):
+                ts = 0
+        elif a.get("providerPublishTime"):
+            ts = int(a["providerPublishTime"])
         out.append({
             "headline": content.get("title", a.get("title", "")),
             "summary": content.get("summary", a.get("summary", "")),
             "source": content.get("provider", {}).get("displayName", a.get("publisher", "")),
             "url": content.get("canonicalUrl", {}).get("url", a.get("link", "")),
-            "datetime": a.get("providerPublishTime", 0),
+            "datetime": ts,
         })
     return out
 

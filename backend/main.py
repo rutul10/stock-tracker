@@ -12,7 +12,7 @@ from slowapi.util import get_remote_address
 
 from database import engine
 import models
-from routers import screener, options, indicators, projection, tracker, stock_detail
+from routers import screener, options, indicators, projection, tracker, stock_detail, trade_score, projection_chat
 
 load_dotenv()
 
@@ -52,6 +52,8 @@ app.include_router(indicators.router)
 app.include_router(projection.router)
 app.include_router(tracker.router)
 app.include_router(stock_detail.router)
+app.include_router(trade_score.router, tags=["trade-score"])
+app.include_router(projection_chat.router, tags=["projection-chat"])
 
 
 @app.get("/health")

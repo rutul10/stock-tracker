@@ -2,20 +2,18 @@ import { useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
 import { useAppStore } from './store'
 import type { ThemeName } from './styles/theme'
-import { Screener } from './components/Screener/Screener'
-import { OptionsChain } from './components/OptionsChain/OptionsChain'
-import { Indicators } from './components/Indicators/Indicators'
-import { Projector } from './components/Projector/Projector'
 import { TradeTracker } from './components/Tracker/TradeTracker'
 import { StockDetailOverlay } from './components/StockDetail/StockDetailOverlay'
 import { ErrorBoundary } from './components/shared/ErrorBoundary'
+import { UserProfileModal } from './components/UserProfile/UserProfileModal'
+import { Watchboard } from './components/Watchboard/Watchboard'
+import { ComparisonView } from './components/Comparison/ComparisonView'
+import { News } from './components/News/News'
 
 const TABS = [
-  { id: 'screener', label: 'SCREENER', key: 'S' },
-  { id: 'options', label: 'OPTIONS', key: 'O' },
-  { id: 'indicators', label: 'CHART', key: 'C' },
-  { id: 'projector', label: 'PROJECT', key: 'P' },
-  { id: 'tracker', label: 'TRACK', key: 'T' },
+  { id: 'watchboard', label: 'WATCHBOARD', key: 'S' },
+  { id: 'news', label: 'NEWS', key: 'N' },
+  { id: 'tracker', label: 'TRACKER', key: 'T' },
 ] as const
 
 const THEMES: { id: ThemeName; label: string }[] = [
@@ -47,7 +45,13 @@ function marketStatus(): { open: boolean; label: string } {
 export const refreshBus = new EventTarget()
 
 export default function App() {
-  const { activeTab, setActiveTab, theme, setTheme, detailSymbol, detailPrice, setDetailSymbol } = useAppStore()
+  const {
+    activeTab, setActiveTab,
+    theme, setTheme,
+    detailSymbol, detailPrice, setDetailSymbol,
+    profileModalOpen, setProfileModalOpen,
+    hasSetProfile,
+  } = useAppStore()
   const [apiStatus, setApiStatus] = useState<HealthStatus>('checking')
   const [ollamaStatus, setOllamaStatus] = useState<HealthStatus>('checking')
   const [lastRefresh, setLastRefresh] = useState<string>('')
@@ -57,6 +61,13 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
+
+  // Auto-open profile modal on first launch
+  useEffect(() => {
+    if (!hasSetProfile) {
+      setProfileModalOpen(true)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const checkHealth = useCallback(async () => {
     try {
@@ -115,35 +126,58 @@ export default function App() {
         <span><StatusDot status={ollamaStatus} />OLLAMA {ollamaStatus.toUpperCase()}</span>
         {lastRefresh && <span>REFRESHED {lastRefresh}</span>}
 
-        {/* Theme toggle */}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 0 }}>
-          {THEMES.map((t, i) => {
-            const isActive = theme === t.id
-            return (
-              <button
-                key={t.id}
-                onClick={() => setTheme(t.id)}
-                style={{
-                  background: isActive ? 'var(--nav-accent)' : 'none',
-                  border: '1px solid var(--border)',
-                  borderRight: i < THEMES.length - 1 ? 'none' : '1px solid var(--border)',
-                  borderRadius: i === 0 ? '3px 0 0 3px' : i === THEMES.length - 1 ? '0 3px 3px 0' : '0',
-                  color: isActive ? (theme === 'dark' ? '#000' : '#fff') : 'var(--text-muted)',
-                  fontFamily: 'var(--font-ui)',
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  padding: '2px 8px',
-                  cursor: 'pointer',
-                }}
-              >
-                {t.label}
-              </button>
-            )
-          })}
+        {/* Theme toggle + Gear icon */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Gear / profile button */}
+          <button
+            onClick={() => setProfileModalOpen(true)}
+            aria-label="Open trading profile"
+            title="My Trading Profile"
+            style={{
+              background: 'none',
+              border: '1px solid var(--border)',
+              borderRadius: 3,
+              color: 'var(--text-muted)',
+              fontFamily: 'var(--font-ui)',
+              fontSize: 13,
+              padding: '2px 7px',
+              cursor: 'pointer',
+              lineHeight: 1,
+            }}
+          >
+            ⚙
+          </button>
+
+          {/* Theme toggle */}
+          <div style={{ display: 'flex', gap: 0 }}>
+            {THEMES.map((t, i) => {
+              const isActive = theme === t.id
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTheme(t.id)}
+                  style={{
+                    background: isActive ? 'var(--nav-accent)' : 'none',
+                    border: '1px solid var(--border)',
+                    borderRight: i < THEMES.length - 1 ? 'none' : '1px solid var(--border)',
+                    borderRadius: i === 0 ? '3px 0 0 3px' : i === THEMES.length - 1 ? '0 3px 3px 0' : '0',
+                    color: isActive ? (theme === 'dark' ? '#000' : '#fff') : 'var(--text-muted)',
+                    fontFamily: 'var(--font-ui)',
+                    fontSize: 10,
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    padding: '2px 8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {t.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
-        <span style={{ fontSize: 10 }}>S·O·C·P·T — switch tabs &nbsp;|&nbsp; R — refresh</span>
+        <span style={{ fontSize: 10 }}>S·N·T — switch tabs &nbsp;|&nbsp; R — refresh</span>
       </div>
 
       {/* Nav */}
@@ -180,10 +214,8 @@ export default function App() {
       {/* Content */}
       <main style={{ flex: 1, overflow: 'auto' }}>
         <ErrorBoundary key={activeTab}>
-          {activeTab === 'screener' && <Screener />}
-          {activeTab === 'options' && <OptionsChain />}
-          {activeTab === 'indicators' && <Indicators />}
-          {activeTab === 'projector' && <Projector />}
+          {activeTab === 'watchboard' && <Watchboard />}
+          {activeTab === 'news' && <News />}
           {activeTab === 'tracker' && <TradeTracker />}
         </ErrorBoundary>
       </main>
@@ -193,6 +225,13 @@ export default function App() {
         <ErrorBoundary>
           <StockDetailOverlay symbol={detailSymbol} currentPrice={detailPrice} onClose={() => setDetailSymbol(null)} />
         </ErrorBoundary>
+      )}
+
+      <ComparisonView />
+
+      {/* User Profile Modal */}
+      {profileModalOpen && (
+        <UserProfileModal isFirstLaunch={!hasSetProfile} />
       )}
     </div>
   )

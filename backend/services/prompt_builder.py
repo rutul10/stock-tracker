@@ -1,6 +1,56 @@
 from typing import Optional
 
 
+def build_chat_system_prompt(
+    symbol: str,
+    context: Optional[dict] = None,
+    user_profile: Optional[dict] = None,
+) -> str:
+    """Build the system prompt for the streaming projection chat endpoint."""
+    ctx = context or {}
+    profile = user_profile or {}
+
+    risk_tolerance = profile.get("risk_tolerance", "moderate")
+    preferred_dte = profile.get("preferred_dte", 30)
+    max_position_size = profile.get("max_position_size", "5% of portfolio")
+
+    price = ctx.get("price", "N/A")
+    rsi = ctx.get("rsi", "N/A")
+    macd = ctx.get("macd", "N/A")
+    sma20 = ctx.get("sma20", "N/A")
+    sma50 = ctx.get("sma50", "N/A")
+    atr = ctx.get("atr", "N/A")
+    bb_upper = ctx.get("bb_upper", "N/A")
+    bb_lower = ctx.get("bb_lower", "N/A")
+
+    probability = ctx.get("probability", "N/A")
+    direction = ctx.get("direction", "N/A")
+    key_risks = ctx.get("key_risks", [])
+    supporting_factors = ctx.get("supporting_factors", [])
+
+    key_risks_str = ", ".join(key_risks) if key_risks else "N/A"
+    supporting_str = ", ".join(supporting_factors) if supporting_factors else "N/A"
+
+    return f"""You are a professional trading analyst helping a {risk_tolerance} investor analyze {symbol}.
+
+CURRENT ANALYSIS CONTEXT:
+- Symbol: {symbol}, Price: ${price}
+- RSI: {rsi}, MACD: {macd}, SMA20: {sma20}, SMA50: {sma50}
+- ATR: {atr}, BB Upper: {bb_upper}, BB Lower: {bb_lower}
+- Prior AI Projection: {probability}% probability of success, Direction: {direction}
+- Key Risks: {key_risks_str}
+- Supporting Factors: {supporting_str}
+
+USER PROFILE:
+- Risk tolerance: {risk_tolerance}
+- Preferred options DTE: {preferred_dte} (never recommend options shorter than this)
+- Max position size: {max_position_size}
+
+Answer questions clearly and concisely. For options recommendations, ONLY suggest strategies \
+appropriate for a {risk_tolerance} investor: covered calls, cash-secured puts, or LEAPS.
+Never recommend weekly options or naked speculative trades unless explicitly asked."""
+
+
 def build_projection_prompt(
     symbol: str,
     trade_type: str,
@@ -16,6 +66,7 @@ def build_projection_prompt(
     news_context: Optional[list[str]] = None,
     earnings_context: Optional[dict] = None,
     dcf_context: Optional[dict] = None,
+    user_profile: Optional[dict] = None,
 ) -> str:
     prices = indicators.get("prices", [])
     last = prices[-1] if prices else {}
@@ -100,6 +151,19 @@ DCF CONTEXT (user assumptions):
     if notes:
         trade_details += f"\n- Trader notes: {notes}"
 
+    # Build optional user profile section
+    user_profile_text = ""
+    if user_profile:
+        risk_tolerance = user_profile.get("risk_tolerance", "moderate")
+        preferred_dte = user_profile.get("preferred_dte", 30)
+        max_position_size = user_profile.get("max_position_size", "5% of portfolio")
+        user_profile_text = f"""
+USER PROFILE:
+- Risk tolerance: {risk_tolerance}
+- Preferred options DTE: {preferred_dte} (never recommend options shorter than this)
+- Max position size: {max_position_size}
+"""
+
     return f"""You are a professional quantitative trading analyst. Analyze this trade and respond with ONLY a JSON object — no prose, no markdown, no explanation outside the JSON.
 
 SYMBOL: {symbol}
@@ -111,12 +175,11 @@ TECHNICAL INDICATORS (3-month):
 - SMA 20: {sma20} | SMA 50: {sma50}
 - Bollinger Bands: Upper {bb_upper} / Lower {bb_lower}
 - ATR (14): {atr}
-{options_text}{news_text}{earnings_text}{dcf_text}
-
+{options_text}{news_text}{earnings_text}{dcf_text}{user_profile_text}
 PROPOSED TRADE:
 {trade_details}
 
-Respond with exactly this JSON structure:
+Respond with exactly this JSON structure. ALL fields are MANDATORY — fill every field even if uncertain:
 {{
   "probability_of_success": <float 0.0-1.0>,
   "confidence": "<low|medium|high>",
@@ -124,5 +187,13 @@ Respond with exactly this JSON structure:
   "risk_reward_ratio": <float, positive number>,
   "suggested_position_size": "<e.g. 1-2% of portfolio>",
   "key_risks": ["<risk 1>", "<risk 2>", "<risk 3>"],
-  "supporting_factors": ["<factor 1>", "<factor 2>", "<factor 3>"]
-}}"""
+  "supporting_factors": ["<factor 1>", "<factor 2>", "<factor 3>"],
+  "price_projections": {{
+    "2W": {{"bear": <float>, "base": <float>, "bull": <float>}},
+    "1M": {{"bear": <float>, "base": <float>, "bull": <float>}},
+    "3M": {{"bear": <float>, "base": <float>, "bull": <float>}}
+  }},
+  "directional_bias": "<bullish|neutral|bearish>"
+}}
+
+The price_projections and directional_bias fields are MANDATORY and must be filled even if uncertain. Use your best estimate based on current price, ATR, and technical indicators."""

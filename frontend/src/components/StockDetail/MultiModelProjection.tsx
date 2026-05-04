@@ -4,18 +4,8 @@ import { useAppStore } from '../../store'
 import { useModels } from '../../hooks/useModels'
 import type { DCFContext } from './DCFCalculator'
 import type { StockDetail, NewsData } from '../../hooks/useStockDetail'
+import type { ProjectionResult } from '../../api/types'
 import { Spinner } from '../shared/Spinner'
-
-interface ProjectionResult {
-  probability_of_success: number
-  confidence: string
-  ai_reasoning: string
-  risk_reward_ratio: number
-  suggested_position_size: string
-  key_risks: string[]
-  supporting_factors: string[]
-  model_used: string
-}
 
 interface ModelState {
   loading: boolean
@@ -29,6 +19,7 @@ interface Props {
   detail: StockDetail | null
   news: NewsData | null
   dcfContext: DCFContext | null
+  onProjectionComplete?: (result: ProjectionResult) => void
 }
 
 const TRADE_TYPES = ['stock', 'call', 'put', 'covered_call', 'cash_secured_put', 'spread'] as const
@@ -69,7 +60,7 @@ function ElapsedTimer({ running }: { running: boolean }) {
   return <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{elapsed}s</span>
 }
 
-export function MultiModelProjection({ symbol, detail, news, dcfContext }: Props) {
+export function MultiModelProjection({ symbol, detail, news, dcfContext, onProjectionComplete }: Props) {
   const { models } = useModels()
   const { selectedModels, setSelectedModels, autoAnalyze, setAutoAnalyze } = useAppStore()
   const [tradeType, setTradeType] = useState<string>('call')
@@ -77,12 +68,16 @@ export function MultiModelProjection({ symbol, detail, news, dcfContext }: Props
   const [modelStates, setModelStates] = useState<Record<string, ModelState>>({})
   const hasRun = useRef(false)
 
-  // When models load, default to selecting all if none selected yet
+  // Reconcile selectedModels against available models on load
   useEffect(() => {
-    if (models.length > 0 && selectedModels.length === 0) {
-      setSelectedModels(models)
+    if (models.length === 0) return
+    const valid = selectedModels.filter((m) => models.includes(m))
+    if (valid.length === 0) {
+      setSelectedModels([models[0]])
+    } else if (valid.length !== selectedModels.length) {
+      setSelectedModels(valid)
     }
-  }, [models, selectedModels.length, setSelectedModels])
+  }, [models]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto analyze on mount if toggled
   useEffect(() => {
@@ -136,6 +131,7 @@ export function MultiModelProjection({ symbol, detail, news, dcfContext }: Props
             ...prev,
             [model]: { loading: false, result: res.data, error: null, elapsed: Math.floor((Date.now() - startTime) / 1000) },
           }))
+          onProjectionComplete?.(res.data)
         })
         .catch((err) => {
           clearInterval(timer)

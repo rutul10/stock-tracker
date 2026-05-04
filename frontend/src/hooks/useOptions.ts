@@ -7,12 +7,14 @@ export function useOptions() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function fetchOptions(symbol: string, expiration?: string) {
+  async function fetchOptions(symbol: string, expiration?: string, minDte?: number) {
     if (!symbol) return
     setLoading(true)
     setError(null)
     try {
-      const params = expiration ? { expiration } : {}
+      const params: Record<string, unknown> = {}
+      if (expiration) params.expiration = expiration
+      if (minDte !== undefined) params.min_dte = minDte
       const res = await client.get(`/options/${symbol}`, { params })
       setData(res.data)
     } catch (e: unknown) {

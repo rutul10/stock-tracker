@@ -210,17 +210,40 @@ def fetch_screener(params: dict) -> list[dict]:
     return result
 
 
-def fetch_options_chain(symbol: str, expiration: str | None = None) -> dict:
+def fetch_options_chain(symbol: str, expiration: str | None = None, min_dte: int = 30) -> dict:
+    from datetime import date, datetime
+
     ticker = yf.Ticker(symbol)
     try:
-        expirations = list(ticker.options)
+        all_expirations = list(ticker.options)
     except Exception:
-        expirations = []
+        all_expirations = []
 
-    if not expirations:
+    if not all_expirations:
         return {"symbol": symbol, "expirations": [], "calls": [], "puts": []}
 
-    exp = expiration if expiration and expiration in expirations else expirations[0]
+    today = date.today()
+    filter_warning: str | None = None
+
+    def _days_to_expiry(exp_str: str) -> int:
+        try:
+            exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
+            return (exp_date - today).days
+        except ValueError:
+            return 0
+
+    filtered_expirations = [e for e in all_expirations if _days_to_expiry(e) >= min_dte]
+
+    if not filtered_expirations:
+        # Fallback: return the nearest available expiry unfiltered
+        filtered_expirations = all_expirations[:1]
+        filter_warning = f"No expiries meet min_dte={min_dte}; returning nearest available"
+
+    # Honour caller-supplied expiration if it is in our filtered list; otherwise use first
+    if expiration and expiration in filtered_expirations:
+        exp = expiration
+    else:
+        exp = filtered_expirations[0]
 
     chain = ticker.option_chain(exp)
 
@@ -245,12 +268,17 @@ def fetch_options_chain(symbol: str, expiration: str | None = None) -> dict:
             })
         return out
 
-    return {
+    response = {
         "symbol": symbol,
-        "expirations": expirations,
+        "expirations": filtered_expirations,
         "calls": parse_contracts(chain.calls, "call"),
         "puts": parse_contracts(chain.puts, "put"),
     }
+
+    if filter_warning:
+        response["filter_warning"] = filter_warning
+
+    return response
 
 
 def fetch_price_history(symbol: str, period: str = "3mo") -> pd.DataFrame:

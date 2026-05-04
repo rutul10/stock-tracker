@@ -41,6 +41,7 @@ export interface OptionsChainResponse {
   expirations: string[]
   calls: OptionContract[]
   puts: OptionContract[]
+  filter_warning?: string
 }
 
 export interface PriceBar {
@@ -150,4 +151,49 @@ export interface TradesSummary {
 export interface TrackedTradesResponse {
   trades: TrackedTrade[]
   summary: TradesSummary
+}
+
+export interface TradeScore {
+  symbol: string
+  score: number
+  direction: 'bullish' | 'neutral' | 'bearish'
+  components: {
+    rsi?: number
+    macd?: number
+    momentum?: number
+    iv?: number
+  }
+  computed_at: string
+}
+
+export interface UserProfile {
+  riskTolerance: 'conservative' | 'moderate' | 'aggressive'
+  preferredDte: 'monthly' | 'quarterly' | 'annual'
+  maxPositionSize: string
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface PriceProjections {
+  '2W': { bear: number; base: number; bull: number }
+  '1M': { bear: number; base: number; bull: number }
+  '3M': { bear: number; base: number; bull: number }
+}
+
+export interface ProjectionResult {
+  symbol: string
+  trade_type: string
+  probability_of_success: number
+  confidence: string
+  ai_reasoning: string
+  risk_reward_ratio: number
+  suggested_position_size: string
+  key_risks: string[]
+  supporting_factors: string[]
+  model_used: string
+  price_projections?: PriceProjections
+  directional_bias?: 'bullish' | 'neutral' | 'bearish'
 }

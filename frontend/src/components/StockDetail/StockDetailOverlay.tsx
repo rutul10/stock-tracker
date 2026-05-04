@@ -5,9 +5,15 @@ import { CompanyOverviewPanel } from './CompanyOverviewPanel'
 import { EarningsPanel } from './EarningsPanel'
 import { NewsPanel } from './NewsPanel'
 import { DCFCalculator } from './DCFCalculator'
+import { SummaryBar } from './SummaryBar'
+import { MiniChart } from './MiniChart'
 import { MultiModelProjection } from './MultiModelProjection'
+import { ProjectionChat } from './ProjectionChat'
 import type { DCFContext } from './DCFCalculator'
+import type { ProjectionResult } from '../../api/types'
 import { Spinner } from '../shared/Spinner'
+
+type SubTab = 'OVERVIEW' | 'AI_PROJECTION' | 'CHAT'
 
 interface Props {
   symbol: string
@@ -16,17 +22,36 @@ interface Props {
 }
 
 export function StockDetailOverlay({ symbol, currentPrice, onClose }: Props) {
-  const { watchlist, addToWatchlist, removeFromWatchlist } = useAppStore()
+  const { watchlist, addToWatchlist, removeFromWatchlist, userProfile } = useAppStore()
   const { detail, news, loadingDetail, loadingNews, errorDetail, refreshNews } = useStockDetail(symbol)
   const [dcfContext, setDCFContext] = useState<DCFContext | null>(null)
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>('OVERVIEW')
+  const [projectionResult, setProjectionResult] = useState<ProjectionResult | null>(null)
 
-  // Lock body scroll while overlay is open
   useEffect(() => {
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
   }, [])
 
+  function handleProjectionComplete(result: ProjectionResult) {
+    setProjectionResult(result)
+    setActiveSubTab('CHAT')
+  }
+
   const isWatched = watchlist.includes(symbol)
+
+  const subTabStyle = (tab: SubTab): React.CSSProperties => ({
+    background: activeSubTab === tab ? 'rgba(0,255,136,0.1)' : 'none',
+    border: 'none',
+    borderBottom: `2px solid ${activeSubTab === tab ? 'var(--nav-accent)' : 'transparent'}`,
+    color: activeSubTab === tab ? 'var(--nav-accent)' : 'var(--text-muted)',
+    fontFamily: 'var(--font-ui)',
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    padding: '8px 16px',
+    cursor: 'pointer',
+  })
 
   return (
     <div
@@ -109,6 +134,23 @@ export function StockDetailOverlay({ symbol, currentPrice, onClose }: Props) {
         </button>
       </div>
 
+      {/* Sub-tab nav */}
+      <div style={{
+        background: 'var(--surface)',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        paddingLeft: 20,
+        position: 'sticky',
+        top: 45,
+        zIndex: 9,
+      }}>
+        <button style={subTabStyle('OVERVIEW')} onClick={() => setActiveSubTab('OVERVIEW')}>OVERVIEW</button>
+        <button style={subTabStyle('AI_PROJECTION')} onClick={() => setActiveSubTab('AI_PROJECTION')}>AI PROJECTION</button>
+        {projectionResult && (
+          <button style={subTabStyle('CHAT')} onClick={() => setActiveSubTab('CHAT')}>CHAT</button>
+        )}
+      </div>
+
       {/* Main content */}
       <div style={{ padding: '20px', flex: 1 }}>
         {errorDetail && (
@@ -117,53 +159,65 @@ export function StockDetailOverlay({ symbol, currentPrice, onClose }: Props) {
           </div>
         )}
 
-        {/* Two-column layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
-          {/* Left column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {activeSubTab === 'OVERVIEW' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Summary Bar */}
+            <SummaryBar detail={detail} currentPrice={currentPrice} />
 
-            {/* Company Overview */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
-              <CompanyOverviewPanel detail={detail} loading={loadingDetail} currentPrice={currentPrice ?? undefined} />
-            </div>
+            {/* Price Chart */}
+            <MiniChart symbol={symbol} />
 
-            {/* Earnings */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
-              <EarningsPanel earnings={detail?.earnings ?? null} loading={loadingDetail} />
+            {/* Two-column grid: Left = News + Collapsible Financials, Right = DCF + Earnings */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
+                  {loadingNews && !news ? <Spinner /> : (
+                    <NewsPanel news={news} loading={loadingNews} onRefresh={refreshNews} />
+                  )}
+                </div>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
+                  <CompanyOverviewPanel detail={detail} loading={loadingDetail} currentPrice={currentPrice ?? undefined} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
+                  <DCFCalculator
+                    fcf0={detail?.fcf ?? null}
+                    sharesOutstanding={detail?.shares_outstanding ?? null}
+                    currentPrice={currentPrice}
+                    onDCFChange={setDCFContext}
+                  />
+                </div>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
+                  <EarningsPanel earnings={detail?.earnings ?? null} loading={loadingDetail} />
+                </div>
+              </div>
             </div>
           </div>
+        )}
 
-          {/* Right column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-            {/* News */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
-              {loadingNews && !news ? <Spinner /> : (
-                <NewsPanel news={news} loading={loadingNews} onRefresh={refreshNews} />
-              )}
-            </div>
-
-            {/* DCF Calculator */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
-              <DCFCalculator
-                fcf0={detail?.fcf ?? null}
-                sharesOutstanding={detail?.shares_outstanding ?? null}
-                currentPrice={currentPrice}
-                onDCFChange={setDCFContext}
-              />
-            </div>
+        {activeSubTab === 'AI_PROJECTION' && (
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
+            <MultiModelProjection
+              symbol={symbol}
+              detail={detail}
+              news={news}
+              dcfContext={dcfContext}
+              onProjectionComplete={handleProjectionComplete}
+            />
           </div>
-        </div>
+        )}
 
-        {/* AI Projection — full width */}
-        <div style={{ marginTop: 20, background: 'var(--surface)', border: '1px solid var(--border)', padding: 16 }}>
-          <MultiModelProjection
-            symbol={symbol}
-            detail={detail}
-            news={news}
-            dcfContext={dcfContext}
-          />
-        </div>
+        {activeSubTab === 'CHAT' && projectionResult && (
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', height: 'calc(100vh - 160px)' }}>
+            <ProjectionChat
+              symbol={symbol}
+              projectionResult={projectionResult}
+              userProfile={userProfile}
+            />
+          </div>
+        )}
       </div>
     </div>
   )
